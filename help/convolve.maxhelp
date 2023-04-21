@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 471.0, 217.0, 534.0, 453.0 ],
+		"rect" : [ 170.0, 157.0, 534.0, 453.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -122,12 +122,13 @@
 			}
 , 			{
 				"box" : 				{
+					"bubble" : 1,
 					"id" : "obj-52",
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 80.0, 376.0, 134.0, 20.0 ],
-					"text" : "<- try your own sounds!"
+					"patching_rect" : [ 81.0, 375.0, 140.0, 24.0 ],
+					"text" : "add your own sound!"
 				}
 
 			}

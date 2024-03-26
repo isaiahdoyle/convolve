@@ -185,6 +185,7 @@ void convolve_main(t_convolve* x, t_symbol* sym, short argc, t_atom* argv) {
     write_wav(&file, fft_length/2, samples, sr1);
 
     /* free memory | unclaim buffers */
+    vDSP_destroy_fftsetup(setup);
     free(samples);
     free(spectrum.imagp);
     free(spectrum.realp);

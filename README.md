@@ -1,9 +1,5 @@
 #  convolve
 
-Written by [Isaiah Doyle](isaiahdoyle56@gmail.com) ([@isaiahdoyle](https://github.com/isaiahdoyle)) for their MUS 307 final project (Introduction to Computer Music) taught by professor [Andrew Schloss](https://www.uvic.ca/finearts/music/people/faculty/profiles/schloss-w.-andrew.php) at the University of Victoria.
-
-
-## Description
 `convolve` is a Max external that convolves two signals and saves the output to a specified file. This was written primarily as an attempt to understand the development process behind convolving two signals, which subsequently leads into the following topics:
 - writing externals for Max/MSP using [the SDK](https://cycling74.com/downloads/sdk);
 - the forward and inverse FFT (using vDSP from Apple's [Accelerate framework](https://developer.apple.com/documentation/accelerate));
@@ -14,19 +10,6 @@ Written by [Isaiah Doyle](isaiahdoyle56@gmail.com) ([@isaiahdoyle](https://githu
 Starting only with a fundamental understanding of C, the majority of what takes place in this code is entirely new to me. Thus, the external is bound to produce bugs! **For the purpose of the assignment, the ideal test case is achieved by convolving two mono signals stored with equivalent sampling rates.** If using for convolution reverb, the impulse response (IR) should be shorter than the signal being affected.
 
 The structure of the object (e.g., how inlets receive data, how data is formatted, etc.) was in part inspired by the `bufconvolve~` object from the [HISSTools Impulse Response Toolbox (HIRT)](https://github.com/HISSTools/HISSTools_Impulse_Response_Toolbox) by [Alex Harker](a.harker@hud.ac.uk) and [Pierre Alexandre Tremblay](p.a.tremblay@hud.ac.uk) with Pete Dowling. Having a similar reference to work with when attempting to stick to convention was incredibly useful, and if on the hunt for something that resembles this object but far more optimized, check out their package from the Max Package Manager! [[1]](#1)
-
-### Discussion
-###### ***what i learned:***
-First and foremost, the Max SDK was totally new to me, and it took significant time to get used to the API (e.g., how externals are structured in C, how to test custom externals in Max, then more specific concepts like reading from buffers). Everything I learned on this front is thanks to the [API documentation](https://cycling74.com/sdk/max-sdk-8.2.0) [[2]](#2).
-
-Once I had a basic understanding of the SDK through reading [the documentation](#2), I took to attempting to decipher the vDSP portion of Apple's [Accelerate framework](https://developer.apple.com/documentation/accelerate). This led to a *long* journey of researching vDSP data packing, how the framework can be used, and how the FFT works. I'm in a completely different place now than I was before beginning this project, largely due to the amount of time I spend studying just the FFT. Some resources that helped support my understanding of the frameork can be found in the bibliography section [[3]](#3) [[4]](#4).
-
-Once main functionality of the object was complete, it was time to begin writing to a .wav file. I had also had no direct experience with how .wav files are formatted, so this took another significant amount of time to learn properly. Again, a few resources that supported this concept can be found in the bibliography [[5]](#5) [[6]](#6).
-
-###### ***what was difficult:***
-The most time consuming part of this project, maybe unsurprisingly, was trying to wrap my head around the vDSP documentation for the FFT computations. There's an immense amount of specificity regarding how data is packed and interpreted (i.e., using `DSPSplitComplex`), and with only a minimum understanding of the Fourier transform it was tedious to try to learn what values (e.g., signal length vs. fft length) the API needed when. If not for the references listed above ([[3]](#3) [[4]](#4)), I definitely wouldn't have completed the project in the time I did.
-
-For concepts that turned into roadbumps during development, I'll try to explain what confused me and how I overcame those issues in the [explanation](#exp) section in the future.
 
 
 ## Installation
@@ -48,14 +31,30 @@ For a pre-configured example, see the included Max help file!
 - **Data Packing:** Accelerate comes with two important data types regarding the FFT. These are `DSPComplex` and `DSPSplitComplex`. Both of these types are used to represent complex numbers, with `DSPComplex` representing one complex value with a single `.real` and `.imag` component. `DSPSplitComplex` is an array of complex values, with all real parts stored in the `.realp` component and all imaginary parts stored in the `.imagp` component.
 \
 \
-To conserve memory, vDSP requires that incoming sample data into FFT functions (e.g., [`vDSP_fft_zrip()`](https://developer.apple.com/documentation/accelerate/1450150-vdsp_fft_zrip)) be packed such that every second sample is stored in the array of imaginary values, and every other sample is stored in the real array. That is, for a set of samples `[0 1 2 3]`, the corresponding packed signal (which gets passed to the FFT) would be `DSPSplitComplex(realp: [0 2], imagp: [1 3])`.
+To conserve memory, vDSP requires that incoming sample data into FFT functions (e.g., [`vDSP_fft_zrip()`](https://developer.apple.com/documentation/accelerate/1450150-vdsp_fft_zrip)) be packed such that every even sample is stored in the array of real values, and every odd sample is stored in the imaginary array. That is, for a set of samples `[0 1 2 3]`, the corresponding packed signal (which gets passed to the FFT) would be `DSPSplitComplex(realp: [0 2], imagp: [1 3])`.
 \
 \
-This can easily be computed using the [`vDSP_ctoz()`](https://developer.apple.com/documentation/accelerate/1450388-vdsp_ctoz) function and casting an array of floats to be treated as an array of complex values:
+Input data can be packed using the [`vDSP_ctoz()`](https://developer.apple.com/documentation/accelerate/1450388-vdsp_ctoz) function and casting an array of floats to be treated as an array of complex values:
     - `vDSP_ctoz((DSPComplex*)samples, 2, &samplesSplit, 1, num_samples/2)`
-        - the first stride is 2 since two consecutive samples correspond to 1 (second stride) complex value. for the same reason, the number of elements to process is half the number of samples.
+        - The first stride is 2 since two consecutive samples correspond to 1 (second stride) complex value. For the same reason, the number of elements to process is half the number of samples.
+
+- **FFT lengths:** Both `vDSP_create_fftsetup()` and `vDSP_fft_zrip()` require specific FFT lengths for computation. It was unclear to me how these values were supposed to be computed, so hopefully this sheds some light for anyone in the same boat:
+    - When pre-allocating memory for the FFT using `vDSP_create_fftsetup()`, the first argument should be the $\log_2x$, where $x$ is the total FFT length defined for two signals A and B being convolved as length(A) + length(B) - 1.
+    - When computing the FFT with `vDSP_fft_zrip()`, the fourth argument is $\log_2y$, where $y$ is the number of elements in the signal to be transformed.
 
 In the interest of time, I'll leave this here for now. I'll continue adding to this though! Feel free to direct any question to isaiahdoyle56@gmail.com in the meantime!
+
+
+### Discussion
+###### ***what i learned:***
+First and foremost, the Max SDK was totally new to me, and it took significant time to get used to the API (e.g., how externals are structured in C, how to test custom externals in Max, then more specific concepts like reading from buffers). Everything I learned on this front is thanks to the [API documentation](https://cycling74.com/sdk/max-sdk-8.2.0) [[2]](#2).
+
+Once I had a basic understanding of the SDK through reading [the documentation](#2), I took to attempting to decipher the vDSP portion of Apple's [Accelerate framework](https://developer.apple.com/documentation/accelerate). This led to a *long* journey of researching vDSP data packing, how the framework can be used, and how the FFT works. I'm in a completely different place now than I was before beginning this project, largely due to the amount of time I spend studying just the FFT. Some resources that helped support my understanding of the frameork can be found in the bibliography section [[3]](#3) [[4]](#4).
+
+Once main functionality of the object was complete, it was time to begin writing to a .wav file. I had also had no direct experience with how .wav files are formatted, so this took another significant amount of time to learn properly. Again, a few resources that supported this concept can be found in the bibliography [[5]](#5) [[6]](#6).
+
+###### ***what was difficult:***
+The most time consuming part of this project, maybe unsurprisingly, was trying to wrap my head around the vDSP documentation for the FFT computations. There's an immense amount of specificity regarding how data is packed and interpreted (i.e., using `DSPSplitComplex`), and with only a minimum understanding of the Fourier transform it was tedious to try to learn what values (e.g., signal length vs. fft length) the API needed when. If not for the references listed above ([[3]](#3) [[4]](#4)), I definitely wouldn't have completed the project in the time I did.
 
 
 ## Bibliography
